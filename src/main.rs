@@ -5,7 +5,7 @@ mod tokens;
 mod parser;
 use tokens::TokenType;
 
-const FILE_PATH: &str = "example/mondeIG/ArcIG.java";
+const FILE_PATH: &str = "samples/mondeIG/ArcIG.java";
 
 fn main() -> Result<(), String> {
     let file = File::open(FILE_PATH).map_err(|err| {
