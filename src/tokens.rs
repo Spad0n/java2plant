@@ -9,6 +9,9 @@ pub enum TokenType {
     #[token("static")]
     Static,
 
+    #[token("final")]
+    Final,
+
     #[token("import")]
     Import,
 
@@ -57,8 +60,8 @@ pub enum TokenType {
     #[token("!")]
     Not,
 
-    #[regex("[a-zA-Z.1-9<>]+", |lex| lex.slice().to_owned())]
-    Value(String),
+    #[regex("[a-zA-Z.1-9<>]+", |lex| Box::from(lex.slice()))]
+    Value(Box<str>),
 
     Unknown
 }

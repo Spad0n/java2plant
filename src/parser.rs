@@ -1,8 +1,10 @@
+use std::{iter::Peekable, vec::IntoIter};
+
 use crate::tokens::TokenType;
 
 #[derive(Debug)]
 pub struct Class {
-    pub name: String,
+    pub name: Box<str>,
     pub attributes: Vec<Attribute>,
     pub methods: Vec<Method>,
 }
@@ -10,27 +12,44 @@ pub struct Class {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Attribute {
-    visibility: Option<String>,
-    name: String,
-    typ: String,
+    visibility: Box<str>,
+    name: Box<str>,
+    typ: Box<str>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Method {
-    visibility: Option<String>,
-    name: String,
-    return_type: String,
-    parameters: Vec<(String, String)>,
+    visibility: Box<str>,
+    name: Option<Box<str>>,
+    return_type: Box<str>,
+    parameters: Vec<(Box<str>, Box<str>)>,
 }
 
-// TODO: prendre en compte le token 'static'
-// TODO: prendre en compte les constructeurs
-// TODO: prendre en compte les valeurs par defaut des attributs
-// TODO: prendre en compte instance d'un attributs
+fn parse_parameters(iter: &mut Peekable<IntoIter<TokenType>>) -> Vec<(Box<str>, Box<str>)> {
+    let mut parameters = Vec::new();
+    while let (Some(TokenType::Value(param_type)), Some(TokenType::Value(param_name))) = (iter.next(), iter.next()) {
+        parameters.push((param_type, param_name));
+        if Some(TokenType::Comma) == iter.next() {
+            continue;
+        } else {
+            break;
+        }
+    }
+
+    // skip the content of the methods
+    while let Some(token) = iter.next() {
+        if TokenType::BraceClose == token {
+            break;
+        }
+    }
+
+    return parameters;
+}
+
 pub fn parse(tokens: Vec<TokenType>) -> Class {
     let mut iter = tokens.into_iter().peekable();
-    let mut class_name = String::new();
+    let mut class_name = None;
     let mut attributes = Vec::new();
     let mut methods = Vec::new();
 
@@ -38,7 +57,7 @@ pub fn parse(tokens: Vec<TokenType>) -> Class {
         match token {
             TokenType::Class => {
                 if let Some(TokenType::Value(name)) = iter.next() {
-                    class_name = name;
+                    class_name = Some(name);
                 }
             },
             TokenType::Private | TokenType::Protected | TokenType::Public => {
@@ -46,46 +65,55 @@ pub fn parse(tokens: Vec<TokenType>) -> Class {
                     continue;
                 }
 
-                let visibility = match token {
+                // skip final and static
+                while let Some(param) = iter.peek() {
+                    if &TokenType::Final == param || &TokenType::Static == param {
+                        iter.next();
+                    } else {
+                        break;
+                    }
+                }
+
+                let visibility: Box<str> = match token {
                     TokenType::Private => "private",
                     TokenType::Protected => "protected",
                     TokenType::Public => "public",
                     _ => unreachable!()
-                }.to_string();
+                }.into();
 
-                if let (Some(TokenType::Value(typ)), Some(TokenType::Value(name))) = (iter.next(), iter.next()) {
-                    match iter.next() {
-                        Some(TokenType::SemiColon) => {
-                            attributes.push(Attribute {
-                                visibility: Some(visibility),
-                                name: name,
-                                typ: typ,
-                            });
-                        },
-                        Some(TokenType::ParenOpen) => {
-                            let mut parameters = Vec::new();
-                            while let (Some(TokenType::Value(param_type)), Some(TokenType::Value(param_name))) = (iter.next(), iter.next()) {
-                                parameters.push((param_type, param_name));
-                                if Some(TokenType::Comma) == iter.next() {
-                                    continue;
-                                } else {
-                                    break;
-                                }
+                if let Some(TokenType::Value(typ)) = iter.next() {
+                    if Some(&TokenType::ParenOpen) != iter.peek() {
+                        if let Some(TokenType::Value(name)) = iter.next() {
+                            match iter.next() {
+                                Some(TokenType::SemiColon) | Some(TokenType::Equal) => {
+                                    attributes.push(Attribute {
+                                        visibility: visibility,
+                                        name: name,
+                                        typ: typ,
+                                    });
+                                },
+                                Some(TokenType::ParenOpen) => {
+                                    let parameters = parse_parameters(&mut iter);
+                                    methods.push(Method {
+                                        visibility: visibility,
+                                        name: Some(name),
+                                        return_type: typ,
+                                        parameters: parameters,
+                                    });
+                                },
+                                _ => {},
                             }
-                            methods.push(Method {
-                                visibility: Some(visibility),
-                                name: name,
-                                return_type: typ,
-                                parameters: parameters,
-                            });
-
-                            while let Some(token) = iter.next() {
-                                if let TokenType::BraceClose = token {
-                                    break;
-                                }
-                            }
-                        },
-                        _ => {},
+                        } else {
+                            panic!("Unexpected token");
+                        }
+                    } else {
+                        let parameters = parse_parameters(&mut iter);
+                        methods.push(Method {
+                            visibility: visibility,
+                            name: None,
+                            return_type: typ,
+                            parameters: parameters,
+                        });
                     }
                 }
             }
@@ -94,7 +122,7 @@ pub fn parse(tokens: Vec<TokenType>) -> Class {
     }
 
     Class {
-        name: class_name,
+        name: class_name.unwrap_or(Box::from("unknown")),
         attributes,
         methods,
     }
@@ -111,17 +139,17 @@ mod test {
 
     #[allow(unused)]
     macro_rules! vues {
-        () => ("example/vues/")
+        () => ("samples/vues/")
     }
 
     #[allow(unused)]
     macro_rules! monde_ig {
-        () => ("example/mondeIG/")
+        () => ("samples/mondeIG/")
     }
 
     #[allow(unused)]
     macro_rules! outils {
-        () => ("example/outils/")
+        () => ("samples/outils/")
     }
 
     fn parse_file(path: &str) -> Class {
@@ -140,63 +168,63 @@ mod test {
     #[test]
     fn fabrique_identifiant() {
         let class = parse_file(concat!(outils!(), "FabriqueIdentifiant.java"));
-        assert_eq!(class.attributes.len(), 0);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.attributes.len(), 2);
+        assert_eq!(class.methods.len(), 2);
     }
 
     #[test]
     fn taille_composant() {
         let class = parse_file(concat!(outils!(), "TailleComposants.java"));
-        assert_eq!(class.attributes.len(), 7);
-        assert_eq!(class.methods.len(), 10);
+        assert_eq!(class.attributes.len(), 8);
+        assert_eq!(class.methods.len(), 12);
     }
 
     #[test]
     fn vue_activite_ig() {
         let class = parse_file(concat!(vues!(), "VueActiviteIG.java"));
         assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.methods.len(), 2);
     }
 
     #[test]
     fn vue_arc_ig() {
         let class = parse_file(concat!(vues!(), "VueArcIG.java"));
         assert_eq!(class.attributes.len(), 0);
-        assert_eq!(class.methods.len(), 3);
+        assert_eq!(class.methods.len(), 4);
     }
 
     #[test]
     fn vue_etape_ig() {
         let class = parse_file(concat!(vues!(), "VueEtapeIG.java"));
         assert_eq!(class.attributes.len(), 3);
-        assert_eq!(class.methods.len(), 0);
+        assert_eq!(class.methods.len(), 1);
     }
 
     #[test]
     fn vue_menu() {
         let class = parse_file(concat!(vues!(), "VueMenu.java"));
         assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.methods.len(), 2);
     }
 
     #[test]
     fn vue_monde_ig() {
         let class = parse_file(concat!(vues!(), "VueMondeIG.java"));
         assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.methods.len(), 2);
     }
 
     #[test]
     fn vue_outils() {
         let class = parse_file(concat!(vues!(), "VueOutils.java"));
         assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.methods.len(), 2);
     }
 
     #[test]
     fn vue_point_de_controle_ig() {
         let class = parse_file(concat!(vues!(), "VuePointDeControleIG.java"));
         assert_eq!(class.attributes.len(), 2);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.methods.len(), 2);
     }
 }
