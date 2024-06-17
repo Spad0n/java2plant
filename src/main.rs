@@ -3,6 +3,7 @@ use std::{fs::File, io::{BufReader, Read}};
 
 mod tokens;
 mod parser;
+mod uml;
 use tokens::TokenType;
 
 const FILE_PATH: &str = "samples/mondeIG/ArcIG.java";
@@ -23,13 +24,7 @@ fn main() -> Result<(), String> {
 
     let class = parser::parse(lexer);
 
-    println!("{}", class.name);
-    for attribute in &class.attributes {
-        println!("{:?}", attribute);
-    }
-    for methods in &class.methods {
-        println!("{:?}", methods);
-    }
+    println!("{}", class);
 
     Ok(())
 }

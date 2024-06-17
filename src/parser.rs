@@ -2,6 +2,22 @@ use std::{iter::Peekable, vec::IntoIter};
 
 use crate::tokens::TokenType;
 
+#[allow(unused)]
+#[derive(Debug)]
+pub enum ParseError {
+    UnexpectedToken,
+    MissingClassName,
+    MissingAttributeName,
+    MissingAttributeType,
+}
+
+#[derive(Debug)]
+pub enum Visibility {
+    Private,
+    Protected,
+    Public,
+}
+
 #[derive(Debug)]
 pub struct Class {
     pub name: Box<str>,
@@ -12,18 +28,18 @@ pub struct Class {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Attribute {
-    visibility: Box<str>,
-    name: Box<str>,
-    typ: Box<str>,
+    pub visibility: Visibility,
+    pub name: Box<str>,
+    pub typ: Box<str>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Method {
-    visibility: Box<str>,
-    name: Option<Box<str>>,
-    return_type: Box<str>,
-    parameters: Vec<(Box<str>, Box<str>)>,
+    pub visibility: Visibility,
+    pub name: Option<Box<str>>,
+    pub return_type: Box<str>,
+    pub parameters: Vec<(Box<str>, Box<str>)>,
 }
 
 fn parse_parameters(iter: &mut Peekable<IntoIter<TokenType>>) -> Vec<(Box<str>, Box<str>)> {
@@ -74,12 +90,12 @@ pub fn parse(tokens: Vec<TokenType>) -> Class {
                     }
                 }
 
-                let visibility: Box<str> = match token {
-                    TokenType::Private => "private",
-                    TokenType::Protected => "protected",
-                    TokenType::Public => "public",
+                let visibility = match token {
+                    TokenType::Private => Visibility::Private,
+                    TokenType::Protected => Visibility::Protected,
+                    TokenType::Public => Visibility::Public,
                     _ => unreachable!()
-                }.into();
+                };
 
                 if let Some(TokenType::Value(typ)) = iter.next() {
                     if Some(&TokenType::ParenOpen) != iter.peek() {
@@ -107,6 +123,7 @@ pub fn parse(tokens: Vec<TokenType>) -> Class {
                             panic!("Unexpected token");
                         }
                     } else {
+                        iter.next(); // skip the open parenthesis
                         let parameters = parse_parameters(&mut iter);
                         methods.push(Method {
                             visibility: visibility,
@@ -168,63 +185,63 @@ mod test {
     #[test]
     fn fabrique_identifiant() {
         let class = parse_file(concat!(outils!(), "FabriqueIdentifiant.java"));
-        assert_eq!(class.attributes.len(), 2);
-        assert_eq!(class.methods.len(), 2);
+        assert_eq!(class.attributes.len(), 2, "number of attributes");
+        assert_eq!(class.methods.len(), 2, "number of methods");
     }
 
     #[test]
     fn taille_composant() {
         let class = parse_file(concat!(outils!(), "TailleComposants.java"));
-        assert_eq!(class.attributes.len(), 8);
-        assert_eq!(class.methods.len(), 12);
+        assert_eq!(class.attributes.len(), 8, "number of attributes");
+        assert_eq!(class.methods.len(), 12, "number of methods");
     }
 
     #[test]
     fn vue_activite_ig() {
         let class = parse_file(concat!(vues!(), "VueActiviteIG.java"));
-        assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 2);
+        assert_eq!(class.attributes.len(), 1, "number of attributes");
+        assert_eq!(class.methods.len(), 2, "number of methods");
     }
 
     #[test]
     fn vue_arc_ig() {
         let class = parse_file(concat!(vues!(), "VueArcIG.java"));
-        assert_eq!(class.attributes.len(), 0);
-        assert_eq!(class.methods.len(), 4);
+        assert_eq!(class.attributes.len(), 0, "number of attributes");
+        assert_eq!(class.methods.len(), 4, "number of methods");
     }
 
     #[test]
     fn vue_etape_ig() {
         let class = parse_file(concat!(vues!(), "VueEtapeIG.java"));
-        assert_eq!(class.attributes.len(), 3);
-        assert_eq!(class.methods.len(), 1);
+        assert_eq!(class.attributes.len(), 3, "number of attributes");
+        assert_eq!(class.methods.len(), 1, "number of methods");
     }
 
     #[test]
     fn vue_menu() {
         let class = parse_file(concat!(vues!(), "VueMenu.java"));
-        assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 2);
+        assert_eq!(class.attributes.len(), 1, "number of attributes");
+        assert_eq!(class.methods.len(), 2, "number of methods");
     }
 
     #[test]
     fn vue_monde_ig() {
         let class = parse_file(concat!(vues!(), "VueMondeIG.java"));
-        assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 2);
+        assert_eq!(class.attributes.len(), 1, "number of attributes");
+        assert_eq!(class.methods.len(), 2, "number of methods");
     }
 
     #[test]
     fn vue_outils() {
         let class = parse_file(concat!(vues!(), "VueOutils.java"));
-        assert_eq!(class.attributes.len(), 1);
-        assert_eq!(class.methods.len(), 2);
+        assert_eq!(class.attributes.len(), 1, "number of attributes");
+        assert_eq!(class.methods.len(), 2, "number of methods");
     }
 
     #[test]
     fn vue_point_de_controle_ig() {
         let class = parse_file(concat!(vues!(), "VuePointDeControleIG.java"));
-        assert_eq!(class.attributes.len(), 2);
-        assert_eq!(class.methods.len(), 2);
+        assert_eq!(class.attributes.len(), 2, "number of attributes");
+        assert_eq!(class.methods.len(), 2, "number of methods");
     }
 }
